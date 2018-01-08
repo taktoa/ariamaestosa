@@ -131,7 +131,7 @@ elif renderer == "wxwidgets":
 
 # Check architecture
 compiler_arch = ARGUMENTS.get("compiler_arch",
-                              platform.architecture(env["CXX"]))[0]
+                              platform.architecture(env["CXX"]))
 if compiler_arch != "32bit" and compiler_arch != "64bit":
     print("Invalid architecture : " + compiler_arch + "; assuming 32bit")
     compiler_arch = "32bit"
@@ -163,6 +163,7 @@ env.ParseConfig(["wx-config", "--cppflags", "--libs", wxlibs])
 # check build type and init build flags
 if build_type == "debug":
     env.Append(CCFLAGS=[
+        "-O0",
         "-g",
         "-Wall",
         "-Wextra",
@@ -179,7 +180,7 @@ else:
     sys.exit(0)
 
 # init common header search paths
-env.Append(CPPPATH=["./Src", ".", "./libjdkmidi/include", "./rtmidi"])
+env.Append(CPPPATH=["./Src", ".", "./libjdkmidi/include"])
 
 print(" ")
 
@@ -221,6 +222,8 @@ if renderer == "opengl":
 
 env.Append(LIBS=["asound"])
 env.Append(LIBS=["dl", "m"])
+env.ParseConfig("pkg-config --cflags rtmidi")
+env.ParseConfig("pkg-config --libs rtmidi")
 env.ParseConfig("pkg-config --cflags glib-2.0")
 env.ParseConfig("pkg-config --libs glib-2.0")
 
@@ -258,7 +261,7 @@ if "install" in COMMAND_LINE_TARGETS:
 
     # set umask so created directories have the correct permissions
     try:
-        os.umask("022")
+        os.umask(022)
     except OSError:  # ignore on systems that don't support umask
         pass
 
@@ -275,13 +278,16 @@ if "install" in COMMAND_LINE_TARGETS:
     env.Command(executable_target, executable,
                 [
                     Copy("$TARGET", "$SOURCE"),
-                    Chmod("$TARGET", "0775"),
+                    Chmod("$TARGET", 0775),
                 ])
 
     # install data files
     data_files = []
     for f in RecursiveGlob("./Resources", "*"):
         if ".svn" in f or ".icns" in f or "*" in f:
+            continue
+
+        if os.path.isdir(f):
             continue
 
         index = f.find("Resources/") + len("Resources/")
@@ -292,8 +298,9 @@ if "install" in COMMAND_LINE_TARGETS:
         env.Alias("install", target)
         env.Command(target, source,
                     [
+                        Mkdir("${TARGET.dir}"),
                         Copy("$TARGET", "$SOURCE"),
-                        Chmod("$TARGET", "0664"),
+                        Chmod("$TARGET", 0664),
                     ])
 
     # install .mo files
